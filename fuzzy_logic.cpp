@@ -160,50 +160,166 @@ void find_files(std::vector<fs::path> &files, const std::string &curr) {
   walk_files(files, curr);
 }
 
-double fuzzy_score(const fs::path &file_obj, const std::string &query) {
-  double score = 0;
-  int last_match_pos = -2;
-  int query_pointer = 0;
-  int file_name_pointer = 0;
-  std::string file_name = file_obj.filename().string();
-  if (query.length() == 0)
-    return 0;
-  while (file_name_pointer != (int)file_name.length()) {
-    // Cast to unsigned char first: UTF-8 bytes are negative as plain char,
-    // and passing a negative value to tolower is undefined behaviour.
-    int small_query = std::tolower(static_cast<unsigned char>(query[query_pointer]));
-    int small_file_name = std::tolower(static_cast<unsigned char>(file_name[file_name_pointer]));
-    if (small_query == small_file_name) {
-      score++;
-      if ((file_name_pointer - last_match_pos) == 1) {
-        score += 0.6;
-      }
-      if (query[query_pointer] == file_name[file_name_pointer]) {
-        score += 0.8;
-      }
-      last_match_pos = file_name_pointer;
-      query_pointer++;
-      if (query_pointer == (int)query.length()) {
-        break;
+// --- Fuzzy matching -----------------------------------------------------
+// Scores a candidate path against the query. The candidate string is the
+// whole relative path with '/' separators, so a query like "auth/user" can
+// match across directories. Every query character must match, in order,
+// case-insensitively (ASCII case folding only). Among all such alignments
+// the one with the HIGHEST total score is used (fzf-style dynamic
+// programming), not the greedy first-occurrence alignment. Each matched
+// character earns:
+//   +1.0  base
+//   +0.8  exact case match
+//   +0.6  the previous query char matched the position right before it
+//   +0.5  word boundary: string start, after / _ - . or space, or a
+//         lowercase->uppercase (camelCase) transition
+//   +1.0  inside the filename (after the last '/')
+// Then a bounded depth penalty is subtracted.
+class FuzzyMatcher {
+ public:
+  static constexpr size_t kMaxDpQuery = 64;
+  static constexpr size_t kMaxDpPath = 1024;
+
+  explicit FuzzyMatcher(const std::string &query) : query_(query) {
+    lower_query_.reserve(query.size());
+    for (char c : query) lower_query_.push_back(lower(c));
+    // DP buffers are allocated once here and reused for every candidate.
+    prev_match_.assign(kMaxDpPath, 0.0);
+    prev_best_.assign(kMaxDpPath, 0.0);
+    cur_match_.assign(kMaxDpPath, 0.0);
+    cur_best_.assign(kMaxDpPath, 0.0);
+  }
+
+  // Returns 0 if some query character can't be matched in order.
+  double score(const std::string &path) {
+    const size_t m = query_.size();
+    const size_t n = path.size();
+    if (m == 0 || m > n) return 0;
+
+    // Cheap pre-filter (rejects most candidates): greedy, case-insensitive
+    // subsequence check. While at it, record each query char's earliest
+    // feasible position, which bounds the DP below.
+    size_t qi = 0;
+    for (size_t j = 0; j < n && qi < m; ++j) {
+      if (lower(path[j]) == lower_query_[qi]) {
+        if (qi < kMaxDpQuery) lo_[qi] = j;
+        ++qi;
       }
     }
-    file_name_pointer++;
-  }
-  if (query_pointer < (int)query.length()) {
-    return 0;
+    if (qi < m) return 0;
+
+    size_t last_slash = path.rfind('/');
+    size_t filename_start = (last_slash == std::string::npos) ? 0 : last_slash + 1;
+
+    double score = (m > kMaxDpQuery || n > kMaxDpPath)
+                       ? greedy_score(path, filename_start)
+                       : best_alignment_score(path, filename_start);
+
+    // Prefer shallower paths, but only as a ranking tie-breaker: cap the
+    // depth penalty so it can never erase a genuine match by driving the
+    // score to <= 0.
+    int level_counter = static_cast<int>(std::count(path.begin(), path.end(), '/'));
+    double depth_penalty = 0.1 * std::max(0, level_counter - 1);
+    score -= std::min(depth_penalty, score * 0.5);
+    return score;
   }
 
-  // Prefer shallower paths, but only as a ranking tie-breaker: cap the
-  // depth penalty so it can never erase a genuine match by driving the
-  // score to <= 0 (previously an unbounded per-level penalty made any
-  // match unfindable past a path depth of ~10).
-  std::string path_name = file_obj.string();
-  int level_counter = std::count(path_name.begin(), path_name.end(), '/');
-  double depth_penalty = 0.1 * std::max(0, level_counter - 1);
-  score -= std::min(depth_penalty, score * 0.5);
+ private:
+  static char lower(char c) {
+    // Cast first: UTF-8 bytes are negative as plain char, and passing a
+    // negative value to tolower is undefined behaviour.
+    return static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  }
 
-  return score;
-}
+  static bool is_boundary(const std::string &path, size_t j) {
+    if (j == 0) return true;
+    char prev = path[j - 1];
+    if (prev == '/' || prev == '_' || prev == '-' || prev == '.' || prev == ' ')
+      return true;
+    char cur = path[j];
+    return prev >= 'a' && prev <= 'z' && cur >= 'A' && cur <= 'Z';
+  }
+
+  // Score for query[i] matched at path[j], excluding the contiguity bonus.
+  double char_score(const std::string &path, size_t i, size_t j,
+                    size_t filename_start) const {
+    double s = 1.0;
+    if (query_[i] == path[j]) s += 0.8;
+    if (is_boundary(path, j)) s += 0.5;
+    if (j >= filename_start) s += 1.0;
+    return s;
+  }
+
+  // Fallback for oversized inputs: the same per-character bonuses, applied
+  // along the greedy first-occurrence alignment. Keeps huge queries/paths
+  // linear-time. Assumes the pre-filter already confirmed a match.
+  double greedy_score(const std::string &path, size_t filename_start) const {
+    double s = 0;
+    size_t qi = 0;
+    size_t prev = std::string::npos;
+    for (size_t j = 0; j < path.size() && qi < query_.size(); ++j) {
+      if (lower(path[j]) != lower_query_[qi]) continue;
+      s += char_score(path, qi, j, filename_start);
+      if (prev != std::string::npos && j == prev + 1) s += 0.6;
+      prev = j;
+      ++qi;
+    }
+    return s;
+  }
+
+  // Two-row DP over (query index i, path index j):
+  //   match[i][j] = best score with query[i] matched exactly at path[j]
+  //   best[i][j]  = max over j' <= j of match[i][j']
+  //   match[i][j] = char_score(i, j) + max(best[i-1][j-1],
+  //                                        match[i-1][j-1] + 0.6)
+  // Row i only needs columns lo[i]..hi[i] (earliest/latest feasible
+  // positions from greedy forward/backward scans), which keeps the work
+  // well below len(query) * len(path) in practice.
+  double best_alignment_score(const std::string &path, size_t filename_start) {
+    const size_t m = query_.size();
+    const size_t n = path.size();
+    const double kNone = -1e18;
+
+    // Latest feasible position of each query char (backward greedy scan).
+    size_t qi = m;
+    for (size_t j = n; j-- > 0 && qi > 0;) {
+      if (lower(path[j]) == lower_query_[qi - 1]) hi_[--qi] = j;
+    }
+
+    double *pm = prev_match_.data(), *pb = prev_best_.data();
+    double *cm = cur_match_.data(), *cb = cur_best_.data();
+    for (size_t i = 0; i < m; ++i) {
+      double running = kNone;
+      for (size_t j = lo_[i]; j <= hi_[i]; ++j) {
+        double v = kNone;
+        if (lower(path[j]) == lower_query_[i]) {
+          double pred = kNone;
+          if (i == 0) {
+            pred = 0;
+          } else {
+            // lo[i] > lo[i-1] guarantees j - 1 >= lo[i-1].
+            pred = pb[std::min(j - 1, hi_[i - 1])];
+            if (j - 1 <= hi_[i - 1] && pm[j - 1] > kNone)
+              pred = std::max(pred, pm[j - 1] + 0.6);
+          }
+          if (pred > kNone) v = pred + char_score(path, i, j, filename_start);
+        }
+        cm[j] = v;
+        running = std::max(running, v);
+        cb[j] = running;
+      }
+      std::swap(pm, cm);
+      std::swap(pb, cb);
+    }
+    return pb[hi_[m - 1]];
+  }
+
+  std::string query_;
+  std::string lower_query_;
+  size_t lo_[kMaxDpQuery];
+  size_t hi_[kMaxDpQuery];
+  std::vector<double> prev_match_, prev_best_, cur_match_, cur_best_;
+};
 
 // --- Top-K retrieval: bounded min-heap ---------------------------------
 // Keeps only the K highest-scoring files seen so far. Once the heap is
@@ -240,9 +356,10 @@ std::vector<ScoredMatch> topKMatches(const std::vector<fs::path> &files,
                                       const std::string &query, size_t k,
                                       const std::unordered_set<std::string> &excluded) {
   std::priority_queue<ScoredMatch, std::vector<ScoredMatch>, MinHeapCompare> heap;
+  FuzzyMatcher matcher(query);
 
   for (const auto &file : files) {
-    double score = fuzzy_score(file, query);
+    double score = matcher.score(file.generic_string());
     if (score <= 0) continue;
     if (!excluded.empty() && excluded.count(file.string())) continue;
 
