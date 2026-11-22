@@ -1,3 +1,4 @@
 bin/
 bench/.venv/
 bench/__pycache__/
+.DS_Store
