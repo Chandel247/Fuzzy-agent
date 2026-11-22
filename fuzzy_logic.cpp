@@ -5,6 +5,9 @@
 #include <iostream>
 #include <queue>
 #include <cstdio>
+#include <cstdlib>
+#include <cerrno>
+#include <iomanip>
 #include <unordered_set>
 #include <sys/wait.h>
 
@@ -166,8 +169,10 @@ double fuzzy_score(const fs::path &file_obj, const std::string &query) {
   if (query.length() == 0)
     return 0;
   while (file_name_pointer != (int)file_name.length()) {
-    char small_query = std::tolower(query[query_pointer]);
-    char small_file_name = std::tolower(file_name[file_name_pointer]);
+    // Cast to unsigned char first: UTF-8 bytes are negative as plain char,
+    // and passing a negative value to tolower is undefined behaviour.
+    int small_query = std::tolower(static_cast<unsigned char>(query[query_pointer]));
+    int small_file_name = std::tolower(static_cast<unsigned char>(file_name[file_name_pointer]));
     if (small_query == small_file_name) {
       score++;
       if ((file_name_pointer - last_match_pos) == 1) {
@@ -211,11 +216,23 @@ struct ScoredMatch {
   double score;
 };
 
+// Total order on matches: higher score first; on equal scores, shorter
+// path first; then plain byte-wise path comparison. Used both for heap
+// eviction and the final sort, so output never depends on walk order.
+bool ranks_before(const ScoredMatch &a, const ScoredMatch &b) {
+  if (a.score != b.score) return a.score > b.score;
+  const std::string &pa = a.path.native();
+  const std::string &pb = b.path.native();
+  if (pa.size() != pb.size()) return pa.size() < pb.size();
+  return pa < pb;
+}
+
 struct MinHeapCompare {
-  // priority_queue is a max-heap by default; reversing the comparison
-  // keeps the lowest score at top() so it's the one we evict first.
+  // priority_queue keeps the "largest" element (per this comparator) at
+  // top(). Treating better-ranked matches as "smaller" keeps the worst
+  // match at top() so it's the one we evict first.
   bool operator()(const ScoredMatch &a, const ScoredMatch &b) const {
-    return a.score > b.score;
+    return ranks_before(a, b);
   }
 };
 
@@ -229,11 +246,12 @@ std::vector<ScoredMatch> topKMatches(const std::vector<fs::path> &files,
     if (score <= 0) continue;
     if (!excluded.empty() && excluded.count(file.string())) continue;
 
+    ScoredMatch m{file, score};
     if (heap.size() < k) {
-      heap.push({file, score});
-    } else if (score > heap.top().score) {
+      heap.push(std::move(m));
+    } else if (ranks_before(m, heap.top())) {
       heap.pop();
-      heap.push({file, score});
+      heap.push(std::move(m));
     }
   }
 
@@ -243,7 +261,7 @@ std::vector<ScoredMatch> topKMatches(const std::vector<fs::path> &files,
     results.push_back(heap.top());
     heap.pop();
   }
-  std::reverse(results.begin(), results.end());  // best score first
+  std::reverse(results.begin(), results.end());  // best match first
   return results;
 }
 
@@ -275,21 +293,46 @@ std::vector<ScoredMatch> select_results(const std::vector<fs::path> &files,
   }
 }
 
+void print_usage(const char *prog) {
+  std::cerr << "Usage: " << prog << " <query> [directory] [top_k]\n";
+}
+
+// Strictly parses top_k: a plain base-10 integer in [1, 100000], nothing
+// else (rejects "", "abc", "0", "-5", "10x", out-of-range values).
+bool parse_top_k(const char *text, size_t &out) {
+  // Require a leading digit: strtol alone would accept " 5" and "+5".
+  if (text == nullptr || *text < '0' || *text > '9') return false;
+  errno = 0;
+  char *end = nullptr;
+  long value = std::strtol(text, &end, 10);
+  if (errno != 0 || end == text || *end != '\0') return false;
+  if (value < 1 || value > 100000) return false;
+  out = static_cast<size_t>(value);
+  return true;
+}
+
 int main(int argc, char *argv[]) {
   if (argc < 2) {
-    std::cerr << "Usage: " << argv[0] << " <query> [directory] [top_k]\n";
+    print_usage(argv[0]);
     return 1;
   }
 
   std::string query = argv[1];
   std::string dir = (argc >= 3) ? argv[2] : ".";
-  size_t top_k = (argc >= 4) ? static_cast<size_t>(std::stoi(argv[3])) : 15;
+  size_t top_k = 15;
+  if (argc >= 4 && !parse_top_k(argv[3], top_k)) {
+    print_usage(argv[0]);
+    std::cerr << "Error: top_k must be an integer from 1 to 100000 (got '"
+              << argv[3] << "')\n";
+    return 2;
+  }
 
   std::vector<fs::path> files;
   find_files(files, dir);
 
   auto results = select_results(files, query, top_k, dir);
 
+  std::cout << std::fixed << std::setprecision(2);
   for (const auto &r : results) {
     std::cout << r.score << "\t" << r.path.string() << "\n";
   }
