@@ -5,11 +5,17 @@
 #include <iostream>
 #include <queue>
 #include <cstdio>
-#include <fstream>
 #include <unordered_set>
-#include <unistd.h>
+#include <sys/wait.h>
 
 namespace fs=std::filesystem;
+
+// Directory names that are never searched, in either listing mode.
+static const std::vector<std::string> kAlwaysSkipped = {"build", ".git", ".venv"};
+// Extra directories skipped by the fallback walk only. Inside a git work
+// tree, .gitignore decides instead (they are almost always ignored anyway).
+static const std::vector<std::string> kWalkSkipped = {"build", ".git", ".venv",
+                                                       "node_modules", "__pycache__"};
 
 // Single-quotes a string for safe embedding in a shell command line.
 std::string shell_quote(const std::string &value) {
@@ -25,58 +31,76 @@ std::string shell_quote(const std::string &value) {
   return quoted;
 }
 
-// Drops any path `git` would consider ignored -- respecting .gitignore at
-// every level, negation patterns, and global excludes -- by asking git
-// itself rather than reimplementing gitignore semantics in C++. Falls back
-// to returning the input unchanged when `curr` isn't inside a git work tree
-// or git isn't available, since this tool must stay usable without git too.
-std::vector<fs::path> filter_gitignored(const std::vector<fs::path> &candidates,
-                                         const std::string &curr) {
-  if (candidates.empty()) return candidates;
-
-  fs::path temp_file = fs::temp_directory_path() /
-      ("fuzzy_finder_" + std::to_string(getpid()) + ".paths");
-  {
-    std::ofstream out(temp_file);
-    for (const auto &p : candidates) {
-      out << p.string() << "\n";
-    }
-  }
-
-  std::string cmd = "git -C " + shell_quote(curr) + " check-ignore --stdin < " +
-                     shell_quote(temp_file.string()) + " 2>/dev/null";
-
-  std::unordered_set<std::string> ignored;
+// Runs `cmd` through the shell and captures all of its stdout (binary-safe,
+// so NUL-separated output survives). Returns true only if the command could
+// be started and exited with status 0.
+bool run_capture(const std::string &cmd, std::string &out) {
+  out.clear();
   FILE *pipe = popen(cmd.c_str(), "r");
-  if (pipe) {
-    char buf[4096];
-    while (fgets(buf, sizeof(buf), pipe)) {
-      std::string line(buf);
-      while (!line.empty() && (line.back() == '\n' || line.back() == '\r')) {
-        line.pop_back();
-      }
-      if (!line.empty()) ignored.insert(line);
-    }
-    pclose(pipe);
+  if (!pipe) return false;
+  char buf[65536];
+  size_t n;
+  while ((n = fread(buf, 1, sizeof(buf), pipe)) > 0) {
+    out.append(buf, n);
   }
-
-  std::error_code rm_ec;
-  fs::remove(temp_file, rm_ec);
-
-  if (ignored.empty()) return candidates;
-
-  std::vector<fs::path> result;
-  result.reserve(candidates.size());
-  for (const auto &p : candidates) {
-    if (ignored.find(p.string()) == ignored.end()) {
-      result.push_back(p);
-    }
-  }
-  return result;
+  int status = pclose(pipe);
+  return status != -1 && WIFEXITED(status) && WEXITSTATUS(status) == 0;
 }
 
-void find_files(std::vector<fs::path> &files, const std::string &curr) {
-  const std::vector<std::string> exDir = {"build", ".git", ".venv"};
+// True if `dir` is inside a git work tree and the git CLI is available.
+bool is_git_work_tree(const std::string &dir) {
+  std::string out;
+  std::string cmd = "git -C " + shell_quote(dir) +
+                    " rev-parse --is-inside-work-tree 2>/dev/null";
+  if (!run_capture(cmd, out)) return false;
+  while (!out.empty() && (out.back() == '\n' || out.back() == '\r')) out.pop_back();
+  return out == "true";
+}
+
+// True if any '/'-separated component of `rel` is one of `names`.
+bool has_skipped_component(const std::string &rel,
+                           const std::vector<std::string> &names) {
+  size_t start = 0;
+  while (start <= rel.size()) {
+    size_t end = rel.find('/', start);
+    if (end == std::string::npos) end = rel.size();
+    std::string component = rel.substr(start, end - start);
+    if (std::find(names.begin(), names.end(), component) != names.end()) return true;
+    start = end + 1;
+  }
+  return false;
+}
+
+// Lists candidate files via `git ls-files`: tracked files plus untracked
+// files that aren't ignored, with every .gitignore level, negations, and
+// global excludes applied by git itself. Ignored trees like node_modules/
+// are never even visited. Paths come back relative to `dir`. Output is
+// NUL-separated (-z) so names containing newlines survive. Returns false
+// if git fails, so the caller can fall back to walking the tree.
+bool git_list_files(std::vector<fs::path> &files, const std::string &dir) {
+  std::string out;
+  std::string cmd = "git -C " + shell_quote(dir) +
+                    " ls-files -z --cached --others --exclude-standard 2>/dev/null";
+  if (!run_capture(cmd, out)) return false;
+
+  // Unmerged (conflicted) paths are listed once per stage; dedupe them.
+  std::unordered_set<std::string> seen;
+  size_t start = 0;
+  while (start < out.size()) {
+    size_t end = out.find('\0', start);
+    if (end == std::string::npos) end = out.size();
+    std::string rel = out.substr(start, end - start);
+    start = end + 1;
+    if (rel.empty() || has_skipped_component(rel, kAlwaysSkipped)) continue;
+    if (!seen.insert(rel).second) continue;
+    files.push_back(fs::path(rel));
+  }
+  return true;
+}
+
+// Fallback for non-git directories (or when git is unavailable): walk the
+// tree, pruning kWalkSkipped directories.
+void walk_files(std::vector<fs::path> &files, const std::string &curr) {
   fs::path base_dir{curr};
 
   // Use the error_code-based iterator API (rather than the throwing one) so
@@ -92,7 +116,6 @@ void find_files(std::vector<fs::path> &files, const std::string &curr) {
     return;
   }
 
-  std::vector<fs::path> raw_files;
   while (start != end) {
     std::error_code type_ec;
     bool is_file = start->is_regular_file(type_ec);
@@ -100,10 +123,11 @@ void find_files(std::vector<fs::path> &files, const std::string &curr) {
 
     if (!type_ec) {
       if (is_file) {
-        raw_files.push_back(fs::relative(start->path(), base_dir));
+        files.push_back(fs::relative(start->path(), base_dir));
       } else if (is_dir) {
         std::string dirName = start->path().filename().string();
-        if (std::find(exDir.begin(), exDir.end(), dirName) != exDir.end()) {
+        if (std::find(kWalkSkipped.begin(), kWalkSkipped.end(), dirName) !=
+            kWalkSkipped.end()) {
           start.disable_recursion_pending();
         }
       }
@@ -115,8 +139,17 @@ void find_files(std::vector<fs::path> &files, const std::string &curr) {
       ec.clear();
     }
   }
+}
 
-  files = filter_gitignored(raw_files, curr);
+// Inside a git work tree, list files with `git ls-files` (fast, and
+// .gitignore-aware without walking ignored trees). Otherwise, or if git
+// fails, walk the directory. Note that ls-files output can include tracked
+// files deleted from disk and submodule directories; those are filtered
+// out later, only for the final top-K results (see select_results).
+void find_files(std::vector<fs::path> &files, const std::string &curr) {
+  if (is_git_work_tree(curr) && git_list_files(files, curr)) return;
+  files.clear();
+  walk_files(files, curr);
 }
 
 double fuzzy_score(const fs::path &file_obj, const std::string &query) {
@@ -182,12 +215,14 @@ struct MinHeapCompare {
 };
 
 std::vector<ScoredMatch> topKMatches(const std::vector<fs::path> &files,
-                                      const std::string &query, size_t k) {
+                                      const std::string &query, size_t k,
+                                      const std::unordered_set<std::string> &excluded) {
   std::priority_queue<ScoredMatch, std::vector<ScoredMatch>, MinHeapCompare> heap;
 
   for (const auto &file : files) {
     double score = fuzzy_score(file, query);
     if (score <= 0) continue;
+    if (!excluded.empty() && excluded.count(file.string())) continue;
 
     if (heap.size() < k) {
       heap.push({file, score});
@@ -207,6 +242,34 @@ std::vector<ScoredMatch> topKMatches(const std::vector<fs::path> &files,
   return results;
 }
 
+// Picks the top-K matches that still exist on disk as regular files.
+// Only the final candidates are stat'ed (not the whole list), which keeps
+// this cheap. A little slack (K + 32) absorbs the occasional deleted file
+// or submodule directory; if more than that fail, selection is rerun with
+// the bad paths excluded until K valid files are found or none remain.
+std::vector<ScoredMatch> select_results(const std::vector<fs::path> &files,
+                                        const std::string &query, size_t k,
+                                        const std::string &dir) {
+  const size_t slack = 32;
+  std::unordered_set<std::string> bad;
+  fs::path base{dir};
+  while (true) {
+    auto candidates = topKMatches(files, query, k + slack, bad);
+    std::vector<ScoredMatch> valid;
+    valid.reserve(std::min(k, candidates.size()));
+    for (auto &c : candidates) {
+      if (valid.size() == k) break;
+      std::error_code ec;
+      if (fs::is_regular_file(base / c.path, ec)) {
+        valid.push_back(std::move(c));
+      } else {
+        bad.insert(c.path.string());
+      }
+    }
+    if (valid.size() == k || candidates.size() < k + slack) return valid;
+  }
+}
+
 int main(int argc, char *argv[]) {
   if (argc < 2) {
     std::cerr << "Usage: " << argv[0] << " <query> [directory] [top_k]\n";
@@ -220,7 +283,7 @@ int main(int argc, char *argv[]) {
   std::vector<fs::path> files;
   find_files(files, dir);
 
-  auto results = topKMatches(files, query, top_k);
+  auto results = select_results(files, query, top_k, dir);
 
   for (const auto &r : results) {
     std::cout << r.score << "\t" << r.path.string() << "\n";
