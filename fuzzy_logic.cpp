@@ -101,14 +101,19 @@ bool git_list_files(std::vector<fs::path> &files, const std::string &dir) {
 // Fallback for non-git directories (or when git is unavailable): walk the
 // tree, pruning kWalkSkipped directories.
 void walk_files(std::vector<fs::path> &files, const std::string &curr) {
-  fs::path base_dir{curr};
+  // The iterator is rooted at base_dir itself, so every entry's path() is
+  // base_dir / <relative part> and lexically_relative recovers that part
+  // with pure string work (no per-file realpath syscalls, unlike
+  // fs::relative). Verified clean for ".", "src", "src/", "./src", and
+  // absolute roots -- no "./" prefixes.
+  const fs::path base_dir{curr};
 
   // Use the error_code-based iterator API (rather than the throwing one) so
   // a problem in one subdirectory -- permission denied, a broken symlink --
   // is skipped in place instead of aborting the entire remaining walk.
   std::error_code ec;
   auto start = fs::recursive_directory_iterator(
-      curr, fs::directory_options::skip_permission_denied, ec);
+      base_dir, fs::directory_options::skip_permission_denied, ec);
   auto end = fs::recursive_directory_iterator();
 
   if (ec) {
@@ -123,7 +128,7 @@ void walk_files(std::vector<fs::path> &files, const std::string &curr) {
 
     if (!type_ec) {
       if (is_file) {
-        files.push_back(fs::relative(start->path(), base_dir));
+        files.push_back(start->path().lexically_relative(base_dir));
       } else if (is_dir) {
         std::string dirName = start->path().filename().string();
         if (std::find(kWalkSkipped.begin(), kWalkSkipped.end(), dirName) !=
