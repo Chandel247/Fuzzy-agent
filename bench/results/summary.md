@@ -3,80 +3,80 @@
 
 | tool | query | mean (ms) | stddev (ms) | min (ms) | max (ms) | files/sec |
 |---|---|---|---|---|---|---|
-| find_grep | common | 93.74 | 1.79 | 90.64 | 98.98 | 10667 |
-| find_naive | common | 92.08 | 1.82 | 89.47 | 97.90 | 10860 |
-| fuzzy_finder | common | 106.54 | 2.64 | 103.63 | 115.18 | 9386 |
-| fzf_fuzzy | common | 98.85 | 2.65 | 95.17 | 107.49 | 10117 |
-| find_grep | exact | 93.97 | 1.62 | 91.24 | 98.74 | 10642 |
-| find_naive | exact | 92.16 | 1.79 | 89.61 | 96.78 | 10851 |
-| fuzzy_finder | exact | 107.96 | 2.83 | 104.48 | 118.47 | 9263 |
-| fzf_fuzzy | exact | 97.85 | 2.64 | 94.77 | 104.67 | 10220 |
-| find_grep | fuzzy_ooo | 105.84 | 26.55 | 91.91 | 246.32 | 9448 |
-| find_naive | fuzzy_ooo | 92.00 | 1.91 | 89.48 | 98.03 | 10870 |
-| fuzzy_finder | fuzzy_ooo | 107.97 | 2.04 | 104.77 | 112.60 | 9262 |
-| fzf_fuzzy | fuzzy_ooo | 102.00 | 1.11 | 99.46 | 103.86 | 9804 |
-| find_grep | no_match | 102.66 | 2.40 | 100.04 | 111.93 | 9740 |
-| find_naive | no_match | 100.16 | 1.00 | 98.17 | 101.91 | 9984 |
-| fuzzy_finder | no_match | 117.73 | 1.84 | 116.03 | 124.29 | 8494 |
-| fzf_fuzzy | no_match | 103.18 | 2.56 | 101.11 | 115.45 | 9692 |
-| find_grep | single_char | 101.86 | 3.09 | 99.23 | 113.68 | 9818 |
-| find_naive | single_char | 100.06 | 1.02 | 98.15 | 102.22 | 9994 |
-| fuzzy_finder | single_char | 117.72 | 2.85 | 115.87 | 130.51 | 8494 |
-| fzf_fuzzy | single_char | 106.61 | 13.08 | 101.85 | 169.51 | 9380 |
-| find_grep | too_long | 101.96 | 0.82 | 100.46 | 104.55 | 9807 |
-| find_naive | too_long | 103.52 | 13.18 | 98.95 | 170.68 | 9660 |
-| fuzzy_finder | too_long | 116.81 | 0.96 | 115.44 | 119.31 | 8561 |
-| fzf_fuzzy | too_long | 106.63 | 13.97 | 101.17 | 173.58 | 9378 |
+| find_grep | common | 61.03 | 1.20 | 59.41 | 66.38 | 16387 |
+| find_naive | common | 59.01 | 1.53 | 57.51 | 67.89 | 16946 |
+| fuzzy_finder | common | 39.06 | 2.12 | 37.24 | 52.45 | 25603 |
+| fzf_fuzzy | common | 62.22 | 1.75 | 60.62 | 71.64 | 16072 |
+| find_grep | exact | 60.36 | 1.48 | 59.19 | 68.92 | 16566 |
+| find_naive | exact | 58.27 | 0.77 | 57.11 | 60.70 | 17160 |
+| fuzzy_finder | exact | 38.57 | 1.33 | 37.32 | 48.27 | 25925 |
+| fzf_fuzzy | exact | 60.99 | 1.42 | 59.73 | 69.14 | 16396 |
+| find_grep | fuzzy_ooo | 60.54 | 1.55 | 59.16 | 69.01 | 16518 |
+| find_naive | fuzzy_ooo | 59.20 | 1.03 | 57.98 | 63.70 | 16892 |
+| fuzzy_finder | fuzzy_ooo | 38.45 | 0.82 | 37.12 | 41.80 | 26008 |
+| fzf_fuzzy | fuzzy_ooo | 63.18 | 3.87 | 60.15 | 78.76 | 15827 |
+| find_grep | no_match | 60.72 | 1.51 | 57.93 | 67.35 | 16468 |
+| find_naive | no_match | 59.24 | 1.44 | 56.64 | 65.99 | 16880 |
+| fuzzy_finder | no_match | 38.05 | 1.79 | 34.88 | 48.62 | 26284 |
+| fzf_fuzzy | no_match | 61.02 | 0.94 | 58.68 | 63.42 | 16387 |
+| find_grep | single_char | 60.48 | 0.88 | 57.94 | 63.00 | 16535 |
+| find_naive | single_char | 59.50 | 2.10 | 57.16 | 67.75 | 16807 |
+| fuzzy_finder | single_char | 39.87 | 2.32 | 37.06 | 52.44 | 25082 |
+| fzf_fuzzy | single_char | 60.68 | 1.97 | 58.50 | 69.40 | 16479 |
+| find_grep | too_long | 61.71 | 1.45 | 59.75 | 68.94 | 16206 |
+| find_naive | too_long | 59.83 | 0.92 | 58.25 | 61.90 | 16716 |
+| fuzzy_finder | too_long | 40.66 | 1.77 | 36.86 | 49.94 | 24597 |
+| fzf_fuzzy | too_long | 61.89 | 0.89 | 60.46 | 63.99 | 16157 |
 
 ## Corpus size: 10000 files
 
 | tool | query | mean (ms) | stddev (ms) | min (ms) | max (ms) | files/sec |
 |---|---|---|---|---|---|---|
-| find_grep | common | 682.89 | 2.82 | 680.97 | 689.59 | 14644 |
-| find_naive | common | 686.36 | 6.63 | 678.84 | 696.19 | 14570 |
-| fuzzy_finder | common | 924.71 | 22.06 | 879.53 | 944.06 | 10814 |
-| fzf_fuzzy | common | 705.21 | 3.61 | 702.22 | 712.43 | 14180 |
-| find_grep | exact | 750.46 | 30.59 | 736.54 | 825.93 | 13325 |
-| find_naive | exact | 750.42 | 20.69 | 730.87 | 775.60 | 13326 |
-| fuzzy_finder | exact | 943.16 | 3.22 | 938.87 | 948.00 | 10603 |
-| fzf_fuzzy | exact | 744.85 | 1.37 | 741.65 | 746.12 | 13426 |
-| find_grep | fuzzy_ooo | 683.68 | 3.65 | 681.12 | 692.36 | 14627 |
-| find_naive | fuzzy_ooo | 682.32 | 6.82 | 674.28 | 694.05 | 14656 |
-| fuzzy_finder | fuzzy_ooo | 873.52 | 8.90 | 863.03 | 887.49 | 11448 |
-| fzf_fuzzy | fuzzy_ooo | 698.32 | 5.81 | 688.36 | 704.84 | 14320 |
-| find_grep | no_match | 685.14 | 1.37 | 683.66 | 687.25 | 14596 |
-| find_naive | no_match | 682.61 | 5.74 | 677.02 | 695.05 | 14650 |
-| fuzzy_finder | no_match | 889.03 | 24.31 | 861.76 | 925.85 | 11248 |
-| fzf_fuzzy | no_match | 691.85 | 1.08 | 690.33 | 693.22 | 14454 |
-| find_grep | single_char | 692.86 | 11.13 | 679.88 | 714.42 | 14433 |
-| find_naive | single_char | 695.66 | 13.84 | 679.33 | 721.22 | 14375 |
-| fuzzy_finder | single_char | 885.26 | 16.25 | 867.20 | 909.34 | 11296 |
-| fzf_fuzzy | single_char | 710.26 | 11.13 | 698.03 | 728.78 | 14079 |
-| find_grep | too_long | 690.90 | 5.33 | 684.28 | 699.25 | 14474 |
-| find_naive | too_long | 682.99 | 6.09 | 678.82 | 695.61 | 14642 |
-| fuzzy_finder | too_long | 872.15 | 5.28 | 865.83 | 879.47 | 11466 |
-| fzf_fuzzy | too_long | 693.73 | 4.21 | 689.04 | 701.25 | 14415 |
+| find_grep | common | 445.01 | 7.13 | 435.16 | 457.51 | 22471 |
+| find_naive | common | 444.99 | 13.59 | 431.80 | 475.60 | 22472 |
+| fuzzy_finder | common | 222.97 | 10.34 | 218.08 | 255.69 | 44849 |
+| fzf_fuzzy | common | 450.69 | 9.38 | 441.10 | 465.33 | 22188 |
+| find_grep | exact | 449.80 | 15.48 | 442.10 | 487.84 | 22232 |
+| find_naive | exact | 448.46 | 15.37 | 439.54 | 482.15 | 22298 |
+| fuzzy_finder | exact | 217.60 | 1.25 | 214.69 | 219.27 | 45956 |
+| fzf_fuzzy | exact | 455.38 | 15.80 | 448.09 | 494.36 | 21960 |
+| find_grep | fuzzy_ooo | 450.17 | 15.50 | 442.95 | 488.35 | 22214 |
+| find_naive | fuzzy_ooo | 454.76 | 21.55 | 437.58 | 490.87 | 21990 |
+| fuzzy_finder | fuzzy_ooo | 221.32 | 12.89 | 214.90 | 263.48 | 45184 |
+| fzf_fuzzy | fuzzy_ooo | 450.62 | 16.79 | 439.98 | 491.78 | 22192 |
+| find_grep | no_match | 450.32 | 16.71 | 439.33 | 490.14 | 22207 |
+| find_naive | no_match | 435.42 | 1.35 | 433.82 | 437.96 | 22966 |
+| fuzzy_finder | no_match | 224.09 | 8.49 | 219.47 | 244.59 | 44624 |
+| fzf_fuzzy | no_match | 446.77 | 12.43 | 438.81 | 475.94 | 22383 |
+| find_grep | single_char | 445.18 | 1.64 | 441.69 | 447.24 | 22463 |
+| find_naive | single_char | 438.48 | 1.86 | 434.92 | 440.86 | 22806 |
+| fuzzy_finder | single_char | 221.89 | 9.19 | 217.53 | 249.32 | 45067 |
+| fzf_fuzzy | single_char | 467.79 | 16.62 | 452.32 | 496.15 | 21377 |
+| find_grep | too_long | 458.54 | 17.44 | 436.36 | 478.03 | 21808 |
+| find_naive | too_long | 436.18 | 4.00 | 432.17 | 445.31 | 22926 |
+| fuzzy_finder | too_long | 217.98 | 1.28 | 216.22 | 219.89 | 45876 |
+| fzf_fuzzy | too_long | 440.98 | 3.04 | 437.41 | 444.67 | 22677 |
 
 ## Corpus size: 100000 files
 
 | tool | query | mean (ms) | stddev (ms) | min (ms) | max (ms) | files/sec |
 |---|---|---|---|---|---|---|
-| find_grep | exact | 5344.24 | 22.80 | 5322.83 | 5380.39 | 18712 |
-| find_naive | exact | 5296.21 | 24.20 | 5267.63 | 5330.68 | 18881 |
-| fuzzy_finder | exact | 7409.21 | 118.48 | 7305.18 | 7601.54 | 13497 |
-| fzf_fuzzy | exact | 5406.67 | 10.02 | 5397.28 | 5422.58 | 18496 |
-| find_grep | fuzzy_ooo | 5324.40 | 9.90 | 5311.26 | 5336.19 | 18781 |
-| find_naive | fuzzy_ooo | 5324.28 | 46.88 | 5290.67 | 5405.15 | 18782 |
-| fuzzy_finder | fuzzy_ooo | 7308.13 | 16.41 | 7287.48 | 7326.98 | 13683 |
-| fzf_fuzzy | fuzzy_ooo | 5386.94 | 11.73 | 5368.71 | 5399.08 | 18563 |
-| find_grep | no_match | 5441.40 | 70.48 | 5366.65 | 5514.20 | 18378 |
-| find_naive | no_match | 5302.75 | 31.51 | 5248.48 | 5328.29 | 18858 |
-| fuzzy_finder | no_match | 7303.79 | 24.98 | 7282.05 | 7344.33 | 13692 |
-| fzf_fuzzy | no_match | 5388.54 | 13.00 | 5370.61 | 5401.73 | 18558 |
-| find_grep | single_char | 5411.02 | 48.44 | 5335.39 | 5464.03 | 18481 |
-| find_naive | single_char | 5308.18 | 32.69 | 5270.86 | 5355.48 | 18839 |
-| fuzzy_finder | single_char | 7302.58 | 20.66 | 7284.08 | 7335.67 | 13694 |
-| fzf_fuzzy | single_char | 5468.52 | 12.95 | 5450.65 | 5483.04 | 18286 |
+| find_grep | exact | 3450.61 | 19.84 | 3435.16 | 3483.03 | 28980 |
+| find_naive | exact | 3412.36 | 29.29 | 3382.72 | 3446.51 | 29305 |
+| fuzzy_finder | exact | 1730.46 | 2.00 | 1727.62 | 1732.63 | 57788 |
+| fzf_fuzzy | exact | 3431.05 | 14.65 | 3411.26 | 3451.30 | 29146 |
+| find_grep | fuzzy_ooo | 3445.38 | 39.07 | 3418.61 | 3514.16 | 29024 |
+| find_naive | fuzzy_ooo | 3473.49 | 51.33 | 3445.32 | 3565.16 | 28790 |
+| fuzzy_finder | fuzzy_ooo | 1719.85 | 9.88 | 1709.41 | 1735.93 | 58144 |
+| fzf_fuzzy | fuzzy_ooo | 3377.49 | 107.84 | 3260.86 | 3497.75 | 29608 |
+| find_grep | no_match | 3231.00 | 14.68 | 3212.11 | 3252.18 | 30950 |
+| find_naive | no_match | 3195.86 | 16.99 | 3174.23 | 3216.56 | 31290 |
+| fuzzy_finder | no_match | 1631.72 | 9.24 | 1622.11 | 1647.01 | 61285 |
+| fzf_fuzzy | no_match | 3231.27 | 11.26 | 3217.07 | 3247.78 | 30948 |
+| find_grep | single_char | 3243.64 | 9.82 | 3228.92 | 3253.41 | 30830 |
+| find_naive | single_char | 3208.04 | 6.69 | 3202.09 | 3218.73 | 31172 |
+| fuzzy_finder | single_char | 1676.91 | 35.72 | 1637.66 | 1722.33 | 59633 |
+| fzf_fuzzy | single_char | 3311.83 | 20.75 | 3281.70 | 3335.11 | 30195 |
 
 ## Correctness: is the expected file actually found?
 

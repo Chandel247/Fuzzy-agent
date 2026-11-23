@@ -1,0 +1,9 @@
+tool,query_label,query,mean,stddev,min,max,expected_relpath,rank
+fuzzy_baseline,exact,auth_service,6.222203,0.084861,6.122521,6.360160,components/user_auth_service.py,1
+fuzzy_finder,exact,auth_service,0.262892,0.009454,0.257808,0.287642,components/user_auth_service.py,1
+fzf_git,exact,auth_service,0.253665,0.018513,0.240035,0.286745,components/user_auth_service.py,1
+fzf_find,exact,auth_service,0.713694,0.018300,0.699069,0.749745,components/user_auth_service.py,50001
+fuzzy_baseline,fuzzy_ooo,pymntgtwyhndlr,6.161812,0.081003,6.042850,6.342242,src/handlers/utils/payment_gateway_handler.go,1
+fuzzy_finder,fuzzy_ooo,pymntgtwyhndlr,0.277718,0.016572,0.259479,0.305986,src/handlers/utils/payment_gateway_handler.go,1
+fzf_git,fuzzy_ooo,pymntgtwyhndlr,0.248358,0.009666,0.242632,0.274533,src/handlers/utils/payment_gateway_handler.go,1
+fzf_find,fuzzy_ooo,pymntgtwyhndlr,0.684594,0.024352,0.667743,0.745988,src/handlers/utils/payment_gateway_handler.go,1

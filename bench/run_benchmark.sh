@@ -23,6 +23,14 @@ command -v fzf >/dev/null || { echo "fzf not found on PATH" >&2; exit 1; }
 
 BIN="$("$SKILL_DIR/scripts/build.sh")"
 
+# hyperfine >= 2 refuses shell syntax (our pipes) unless the shell mode is
+# chosen explicitly; 1.x has no such flag value, so only pass it on 2.x+.
+HF_SHELL_ARGS=()
+hf_major="$(hyperfine --version | awk '{print $2}' | cut -d. -f1)"
+if [[ "$hf_major" =~ ^[0-9]+$ && "$hf_major" -ge 2 ]]; then
+  HF_SHELL_ARGS=(--shell=default)
+fi
+
 RESULTS_CSV="$RESULTS_DIR/results.csv"
 CORRECTNESS_CSV="$RESULTS_DIR/correctness.csv"
 echo "size,tool,query_label,query,mean,stddev,min,max,files_per_sec" > "$RESULTS_CSV"
@@ -85,14 +93,18 @@ run_size() {
       local cell_json="$RESULTS_DIR/.cell_${size}_${tool}_${label}.json"
 
       echo "--- size=$size tool=$tool query=$label ---" >&2
-      hyperfine --warmup "$warmup" --min-runs "$minruns" --ignore-failure \
+      hyperfine ${HF_SHELL_ARGS[@]+"${HF_SHELL_ARGS[@]}"} --warmup "$warmup" --min-runs "$minruns" --ignore-failure \
         --export-json "$cell_json" "$cmd" >&2
 
       python3 - "$cell_json" "$size" "$tool" "$label" "$query" "$RESULTS_CSV" <<'PYEOF'
 import json, sys, csv
 cell_json, size, tool, label, query, out_csv = sys.argv[1:7]
 d = json.load(open(cell_json))["results"][0]
-mean, stddev, mn, mx = d["mean"], d["stddev"], d["min"], d["max"]
+# hyperfine 1.x puts mean/stddev/min/max at the top level of each result;
+# hyperfine 2.x (schema_version 2) nests them under summary.time_wall_clock.
+if "mean" not in d and "summary" in d:
+    d = d["summary"]["time_wall_clock"]
+mean, stddev, mn, mx = d["mean"], d["stddev"] or 0.0, d["min"], d["max"]
 fps = int(size) / mean if mean > 0 else 0
 with open(out_csv, "a", newline="") as f:
     csv.writer(f).writerow([size, tool, label, query, f"{mean:.6f}", f"{stddev:.6f}", f"{mn:.6f}", f"{mx:.6f}", f"{fps:.1f}"])
