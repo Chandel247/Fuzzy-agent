@@ -59,3 +59,15 @@ full usage, scoring notes, and output format.
 - `fuzzy_logic.cpp` — the implementation.
 - `scripts/build.sh` — builds/caches the binary.
 - `bench/` — the benchmark suite backing the claims above.
+
+## License
+
+[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) — see `LICENSE`.
+
+- **Free for non-commercial use**: personal projects, study, and research.
+- **No commercial use** without separate permission from the author.
+- **Credit required**: keep the copyright notice and say if you changed anything.
+- **Share-alike**: if you share a modified version, it must use this same license.
+
+Versions published before this change were released under the MIT License and
+remain available under MIT terms; this license applies from this commit onward.
