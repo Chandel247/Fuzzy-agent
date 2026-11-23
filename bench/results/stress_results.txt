@@ -1,10 +1,10 @@
-== Stress / robustness suite (scratch: /private/tmp/claude-501/-Users-shivpratapsinghchandel-fuzzy-skill/34e38f1f-e02a-462d-81b4-67da329b3ae5/scratchpad/stress) ==
-FAIL: permission-denied subdirectory: dir_parser's outer try/catch aborted the whole walk on first fs::filesystem_error -- lost 8 files beyond the locked directory's own contents (9 found, 17 expected)
-FAIL: deep nesting: reached depth 187, needle NOT found -- fuzzy_score's per-level penalty (score -= slash_count - 1) is unbounded/linear (-1.0 per directory level, no floor), so ANY match -- even a perfect one -- becomes permanently unfindable past depth ~9-10 once the penalty exceeds the maximum possible match bonus. Verified directly: a perfect single-file match disappears exactly at depth 10 regardless of query quality. Real repos routinely nest 10+ levels (e.g. Java/monorepo package trees), so this is not just an extreme-depth edge case.
+== Stress / robustness suite (scratch: /private/tmp/claude-501/-Users-shivpratapsinghchandel-fuzzy-skill/c1c8e97b-1af9-4647-8861-8170bc8b97a7/scratchpad/run/stress) ==
+PASS: permission-denied subdirectory: cleanly skipped (found 16 of 16 non-locked files)
+OBSERVED: deep nesting: reached depth 187 (path len 954), needle found successfully at max depth
 PASS: unicode / spaces / punctuation filenames all matched correctly
 PASS: empty corpus: exits 0 with no output
 PASS: single-file corpus: found the one file via fuzzy subsequence query
 PASS: empty query string: exits 0 with no output (matches fuzzy_score's early return)
 PASS: query longer than any filename: exits 0 with no output
-OBSERVED: flat single dir (50000 files) scan: 1057ms vs balanced tree (depth 6): 3886ms
+OBSERVED: flat single dir (50000 files) scan: 54ms vs balanced tree (depth 6): 1031ms
 == Stress suite complete ==
